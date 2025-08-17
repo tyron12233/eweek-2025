@@ -168,6 +168,34 @@ export default function AdminScorePage() {
             <div>
               <label className="block text-sm mb-1">Sticks Caught (0-{TOTAL_STICKS})</label>
               <input value={sticksCaught} onChange={e => setSticksCaught(e.target.value)} type="number" min={0} max={TOTAL_STICKS} className="w-full p-2 bg-black/30 rounded border border-white/20" />
+              <div className="mt-3">
+                <label className="block text-sm mb-2">Quick Select</label>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: TOTAL_STICKS + 1 }, (_, v) => (
+                    <button
+                      type="button"
+                      key={v}
+                      onClick={() => {
+                        setSticksCaught(String(v));
+                        setTimeout(() => {
+                          const form = document.querySelector('form');
+                          if (form) {
+                            const event = new Event('submit', { bubbles: true, cancelable: true });
+                            form.dispatchEvent(event);
+                          }
+                        }, 0);
+                      }}
+                      className={`py-2 rounded-md border text-center font-semibold transition ${
+                        String(v) === sticksCaught
+                          ? 'bg-yellow-400 text-slate-900 border-yellow-300 shadow'
+                          : 'bg-black/30 text-white border-white/20 hover:bg-white/10'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           <button type="submit" className="px-4 py-2 bg-yellow-400 text-slate-900 font-semibold rounded hover:bg-yellow-300">Apply Score</button>
