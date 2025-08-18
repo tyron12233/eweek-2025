@@ -22,11 +22,16 @@ export default function AdminScorePage() {
   const [sticksCaught, setSticksCaught] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingId, setIsLoadingId] = useState(false);
-
   const TOTAL_STICKS = 6;
   const ID_INPUT_TIMEOUT = 500;
   const idTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [studentIdBuffer, setStudentIdBuffer] = useState('');
+
+  // Backup/Transfer state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importOk, setImportOk] = useState<string | null>(null);
 
   useEffect(() => {
     const load = () => {
@@ -142,6 +147,53 @@ export default function AdminScorePage() {
     setSticksCaught('');
   };
 
+  // --- Backup & Transfer helpers ---
+  const exportState = useCallback(() => {
+    const data = { players, session, version: 1, exportedAt: new Date().toISOString() };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `reaction-ring-state-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [players, session]);
+
+  const importFromJSON = useCallback((text: string) => {
+    try {
+      const obj = JSON.parse(text);
+      const pl = obj?.players ?? obj?.reactionRingPlayers;
+      const se = obj?.session ?? obj?.reactionRingSession;
+      if (!pl || typeof pl !== 'object') throw new Error('Missing players');
+      if (!se || typeof se !== 'object' || !['inactive', 'active', 'scoring'].includes(se.status)) throw new Error('Missing session');
+      setPlayers(pl);
+      setSession(se);
+      try {
+        localStorage.setItem('reactionRingPlayers', JSON.stringify(pl));
+        localStorage.setItem('reactionRingSession', JSON.stringify(se));
+      } catch {}
+      setImportError(null);
+      setImportOk('Imported successfully.');
+    } catch (e) {
+      setImportOk(null);
+      setImportError('Invalid file/JSON format.');
+    }
+  }, []);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      importFromJSON(text);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, [importFromJSON]);
+
   return (
     <main className="min-h-screen w-full p-6 bg-slate-900 text-white relative">
       <div className="max-w-3xl mx-auto relative z-10">
@@ -211,6 +263,27 @@ export default function AdminScorePage() {
               </li>
             ))}
           </ul>
+        </div>
+
+        {/* Backup & Transfer */}
+        <div className="mt-10 bg-white/10 p-4 rounded-lg">
+          <h2 className="text-xl font-semibold mb-3">Backup & Transfer</h2>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={exportState} className="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-400">Export to JSON</button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-sky-500 text-white rounded hover:bg-sky-400">Import from file</button>
+          </div>
+          <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleFileInput} />
+          <div className="mt-4">
+            <label className="block text-sm mb-1">Or paste JSON</label>
+            <textarea rows={4} value={importText} onChange={(e) => setImportText(e.target.value)} className="w-full p-2 bg-black/30 rounded border border-white/20 font-mono" placeholder='{"players": {"123": {"id":"123","name":"Alice","score":10,"attempts":1,"lastPlayed": 0}}, "session": {"playerId":"","status":"inactive"}}' />
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={() => importFromJSON(importText)} className="px-3 py-1.5 bg-sky-500 text-white rounded hover:bg-sky-400">Import JSON</button>
+              <button type="button" onClick={() => { setImportText(''); setImportError(null); setImportOk(null); }} className="px-3 py-1.5 bg-white/10 rounded hover:bg-white/20">Clear</button>
+            </div>
+            {importError && <p className="mt-2 text-red-300">{importError}</p>}
+            {importOk && <p className="mt-2 text-emerald-300">{importOk}</p>}
+            <p className="mt-3 text-xs text-white/70">Keys saved: <code>reactionRingPlayers</code>, <code>reactionRingSession</code></p>
+          </div>
         </div>
       </div>
 
