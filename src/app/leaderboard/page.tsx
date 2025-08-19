@@ -1,31 +1,9 @@
 "use client";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Image from "next/image";
-
-// Types shared with main page
-interface Player {
-  id: string;
-  name?: string;
-  score: number;
-  attempts: number;
-  lastPlayed: number;
-}
-          <h1
-            className="text-5xl font-bold text-white mb-8 text-center"
-            style={{
-              fontFamily: "Pagkaki, sans-serif",
-              textShadow: "0px 4px 0px rgba(43, 84, 58, 0.4), 0 0 30px rgba(255, 255, 255, 0.8), 0 0 60px rgba(255, 215, 0, 0.6)",
-              color: "rgba(34, 56, 34, 0.95)",
-              animation: 'breathe 3s ease-in-out infinite',
-            }}
-          >
-            LEADERBOARD
-          </h1>
-
-interface GameSession {
-  playerId: string;
-  status: "inactive" | "active" | "scoring";
-}
+import { supabase } from "@/lib/supabase";
+import { fetchStudentInfo } from "@/lib/student";
+import { Player, GameSession } from "@/lib/types"
 
 const PlainsBackground = () => (
   <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
@@ -80,10 +58,17 @@ export default function LeaderboardPage() {
   const [session, setSession] = useState<GameSession>({
     playerId: "",
     status: "inactive",
+    name: ""
   });
   const [animNonce, setAnimNonce] = useState(0);
   const [showStartAnim, setShowStartAnim] = useState(false);
   const prevHasPlayerRef = useRef(false);
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoadingId, setIsLoadingId] = useState(false);
+  const ID_INPUT_TIMEOUT = 500;
+  const idTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [studentIdBuffer, setStudentIdBuffer] = useState('');
 
   // Particle effect state
   type Particle = {
@@ -109,6 +94,172 @@ export default function LeaderboardPage() {
     batch: number;
   };
   const [labelsMap, setLabelsMap] = useState<Record<string, LabelBurst[]>>({});
+
+  const handleIdSubmission = useCallback(async () => {
+    const trimmedId = studentIdBuffer.trim();
+    if (!trimmedId || isLoadingId) { setStudentIdBuffer(''); return; }
+
+    // if current session is active, do not proceed
+    if (session.status !== 'inactive') {
+      return;
+    }
+
+    setIsLoadingId(true);
+    setErrorMessage(null);
+    try {
+      const info = await fetchStudentInfo(trimmedId);
+      const isValid = !!(info && info.email && info.email.endsWith('@dlsl.edu.ph') && info.name && info.name.trim().length > 0 && info.whitelist);
+      if (!isValid) {
+        setErrorMessage('Invalid student ID. Please try again.');
+      } else {
+        // update session
+        supabase.from('session')
+          .upsert({
+            id: 0,
+            player_id: trimmedId,
+            name: info!.name,
+            status: 'active'
+          })
+          .then(({ error }) => {
+            if (error) {
+              console.error("Failed to update leaderboard:", error);
+              setErrorMessage('Failed to start session. Please try again.');
+            }
+          });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Validation error:', e);
+      setErrorMessage('Unable to validate ID. Check connection and try again.');
+    } finally {
+      setIsLoadingId(false);
+      setStudentIdBuffer('');
+    }
+  }, [studentIdBuffer, isLoadingId, session.status]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (session.status !== 'inactive' || isLoadingId) return;
+      if (idTimeoutRef.current) clearTimeout(idTimeoutRef.current);
+      if (event.key === 'Enter') {
+        void handleIdSubmission();
+      } else if (event.key.length === 1) {
+        setStudentIdBuffer(prev => prev + event.key);
+      }
+      idTimeoutRef.current = setTimeout(() => { void handleIdSubmission(); }, ID_INPUT_TIMEOUT);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (idTimeoutRef.current) clearTimeout(idTimeoutRef.current);
+    };
+  }, [handleIdSubmission, session.status, isLoadingId]);
+
+
+
+  useEffect(() => {
+    console.log("Fetching from supabase");
+
+    supabase.from("leaderboard")
+      .select("*")
+      .order("score", { ascending: false })
+      .limit(10)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to fetch leaderboard:", error);
+          return;
+        }
+        const playersMap: Record<string, Player> = {};
+        data?.forEach((player) => {
+          playersMap[player.id] = {
+            id: player.id,
+            name: player.name,
+            score: player.score,
+            attempts: player.attempts,
+            lastPlayed: player.last_played,
+          };
+        });
+        setPlayers(playersMap);
+      });
+  }, []);
+
+  useEffect(() => {
+    // fetch session
+    console.log("FETCHING SESSION")
+
+    supabase.from("session")
+      .select("*")
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to fetch session:", error);
+          return;
+        }
+        if (data) {
+          setSession({
+            playerId: data.player_id,
+            name: data.name,
+            status: data.status,
+          });
+        } else {
+          // no session found
+          console.log("No session found")
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    // realtime subscriptions
+
+    const leaderboardSubscription = supabase.channel("leaderboard")
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leaderboard' },
+        (payload) => {
+          console.log("Leaderboard payload:", payload);
+
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const newPlayer = payload.new;
+            setPlayers((prev) => ({ ...prev, [newPlayer.id]: newPlayer }));
+          } else if (payload.eventType === 'DELETE') {
+            const deletedPlayerId = payload.old.id;
+            setPlayers((prev) => {
+              const newPlayers = { ...prev };
+              delete newPlayers[deletedPlayerId];
+              return newPlayers;
+            });
+          }
+        }
+      )
+
+    const sessionSubscription = supabase.channel("session")
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'session' },
+        (payload) => {
+          console.log("Session payload:", payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newSession = payload.new;
+            setSession((prev) => ({ ...prev, ...newSession }));
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedSession = payload.new;
+            setSession((prev) => ({ ...prev, ...updatedSession }));
+          } else if (payload.eventType === 'DELETE') {
+            setSession({ playerId: "", status: "inactive", name: "" });
+          }
+        });
+
+    sessionSubscription.subscribe();
+    leaderboardSubscription.subscribe();
+
+    return () => {
+      sessionSubscription.unsubscribe();
+      leaderboardSubscription.unsubscribe();
+    };
+  }, [])
+
 
   const spawnParticles = useCallback((playerId: string, kind: "add" | "sub", delta: number) => {
     const N = 16;
@@ -170,36 +321,6 @@ export default function LeaderboardPage() {
     }, ttl);
   }, []);
 
-  // Load from localStorage
-  const loadFromStorage = () => {
-    try {
-      const p = localStorage.getItem("reactionRingPlayers");
-      const s = localStorage.getItem("reactionRingSession");
-      if (p) setPlayers(JSON.parse(p));
-      if (s) setSession(JSON.parse(s));
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to load game state from localStorage", e);
-    }
-  };
-
-  useEffect(() => {
-    loadFromStorage();
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "reactionRingPlayers" || e.key === "reactionRingSession") {
-        loadFromStorage();
-      }
-    };
-
-    window.addEventListener("storage", onStorage);
-    const interval = setInterval(loadFromStorage, 1000); // polling fallback
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      clearInterval(interval);
-    };
-  }, []);
 
   // Detect transition from waiting -> now playing and trigger intro animation
   useEffect(() => {
@@ -221,7 +342,7 @@ export default function LeaderboardPage() {
   // Trigger animation when leaderboard content changes
   useEffect(() => {
     setAnimNonce((n) => n + 1);
-  }, [JSON.stringify(leaderboard.map((p) => ({ id: p.id, score: p.score }))) ]);
+  }, [JSON.stringify(leaderboard.map((p) => ({ id: p.id, score: p.score })))]);
 
   // Detect score changes and spawn particles
   useEffect(() => {
@@ -267,10 +388,10 @@ export default function LeaderboardPage() {
       `}</style>
 
       <div className="relative z-10 w-full max-w-4xl mx-auto">
-  
-        <div 
+
+        <div
           className="p-8 bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20"
-          style={{ 
+          style={{
             // animation: 'glow 4s ease-in-out infinite, shimmer 6s ease-in-out infinite',
             background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%)'
           }}
@@ -287,7 +408,25 @@ export default function LeaderboardPage() {
           </h1>
 
           <div key={session.status !== 'inactive' ? session.playerId : 'waiting'} className="relative">
-            {session.status !== "inactive" && players[session.playerId] ? (
+            {isLoadingId ? (
+              <div
+                className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20 text-center text-[rgba(34,56,34,0.95)]"
+                style={{
+                  animation: 'waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite'
+                }}
+              >
+                Validating student ID...
+              </div>
+            ) : errorMessage ? (
+              <div
+                className="mb-6 p-4 rounded-xl bg-red-100/30 border border-red-300/40 text-center text-red-700 font-semibold"
+                style={{
+                  animation: 'popIn 420ms ease-out both'
+                }}
+              >
+                {errorMessage}
+              </div>
+            ) : session.status !== "inactive" ? (
               <div
                 className="mb-6 p-4 rounded-xl bg-yellow-400/20 border border-yellow-300/40 text-white text-center uppercase"
                 style={{
@@ -304,7 +443,7 @@ export default function LeaderboardPage() {
                 )}
                 <p className="text-xl text-[rgba(34,56,34,0.95)]">Now Playing:</p>
                 <p className="text-3xl font-extrabold mt-1 text-[rgba(34,56,34,0.95)]">
-                  {players[session.playerId]?.name || session.playerId}
+                  {session.name}
                 </p>
                 <p className="text-sm opacity-80 mt-1 text-[rgba(34,56,34,0.95)]">
                   Status: {session.status}
@@ -313,7 +452,7 @@ export default function LeaderboardPage() {
             ) : (
               <div
                 className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20 text-center text-[rgba(34,56,34,0.95)]"
-                style={{ 
+                style={{
                   animation: 'waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite'
                 }}
               >
@@ -327,31 +466,29 @@ export default function LeaderboardPage() {
               leaderboard.map((player, index) => (
                 <div
                   key={player.id}
-                  className={`relative overflow-visible flex items-center justify-between p-4 rounded-xl text-white transition-all duration-300 shadow-lg animate-in ${
-                    index === 0
-                      ? "bg-yellow-400/30 border-2 border-yellow-300 scale-[1.02]"
-                      : index === 1
+                  className={`relative overflow-visible flex items-center justify-between p-4 rounded-xl text-white transition-all duration-300 shadow-lg animate-in ${index === 0
+                    ? "bg-yellow-400/30 border-2 border-yellow-300 scale-[1.02]"
+                    : index === 1
                       ? "bg-slate-50/20 border border-slate-300/50"
                       : index === 2
-                      ? "bg-orange-500/20 border border-orange-400/50"
-                      : "bg-white/10"
-                  }`}
-                  style={{ 
+                        ? "bg-orange-500/20 border border-orange-400/50"
+                        : "bg-white/10"
+                    }`}
+                  style={{
                     animationDelay: `${index * 60}ms`,
                     animation: `float 4s ease-in-out infinite ${index * 0.5}s`
                   }}
                 >
                   <div className="flex items-center">
                     <div
-                      className={`w-12 h-12 min-w-12 min-h-12 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${
-                        index === 0
-                          ? "bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-300 ring-amber-200/60"
-                          : index === 1
+                      className={`w-12 h-12 min-w-12 min-h-12 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${index === 0
+                        ? "bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-300 ring-amber-200/60"
+                        : index === 1
                           ? "bg-gradient-to-br from-gray-300 to-gray-500 border-gray-300 ring-gray-200/60"
                           : index === 2
-                          ? "bg-gradient-to-br from-orange-400 to-amber-600 border-amber-400 ring-amber-200/60"
-                          : "bg-gradient-to-br from-emerald-900/70 to-emerald-800/70 border-emerald-700/70 ring-white/10"
-                      }`}
+                            ? "bg-gradient-to-br from-orange-400 to-amber-600 border-amber-400 ring-amber-200/60"
+                            : "bg-gradient-to-br from-emerald-900/70 to-emerald-800/70 border-emerald-700/70 ring-white/10"
+                        }`}
                       style={{ textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
                     >
                       #{index + 1}
@@ -362,7 +499,8 @@ export default function LeaderboardPage() {
                         fontFamily: "Pagkaki, sans-serif",
                       }}
                     >
-                      {player.name || player.id}
+                      {player.name || player.id} {" "}
+                      {player.attempts === 0 ? "(First attempt)" : `(${player.attempts} attemps)`}
                     </span>
                   </div>
 
@@ -394,7 +532,7 @@ export default function LeaderboardPage() {
                         key={l.id}
                         className="absolute font-extrabold uppercase"
                         style={{
-                            zIndex: 10,
+                          zIndex: 10,
                           left: "50%",
                           top: "50%",
                           transform: "translate(-50%, -50%)",
