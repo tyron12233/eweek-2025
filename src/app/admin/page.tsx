@@ -133,7 +133,7 @@ export default function AdminPage() {
     setIsSubmitting(true);
     try {
       const { error } = await supabase.rpc("update_score", {
-        player_id: session.playerId,
+        player_id: session.playerId.toUpperCase(),
         new_score: score,
       });
       if (error) {
