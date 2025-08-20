@@ -107,7 +107,7 @@ export default function LeaderboardPage() {
     setIsLoadingId(true);
     setErrorMessage(null);
     try {
-      const info = await fetchStudentInfo(trimmedId);
+      const info = await fetchStudentInfo(trimmedId.toUpperCase());
       const isValid = !!(info && info.email && info.email.endsWith('@dlsl.edu.ph') && info.name && info.name.trim().length > 0 && info.whitelist);
       if (!isValid) {
         setErrorMessage('Invalid student ID. Please try again.');
