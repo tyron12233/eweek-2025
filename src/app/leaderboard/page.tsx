@@ -1,9 +1,15 @@
 "use client";
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { fetchStudentInfo } from "@/lib/student";
-import { Player, GameSession } from "@/lib/types"
+import { Player, GameSession } from "@/lib/types";
 
 const PlainsBackground = () => (
   <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
@@ -35,6 +41,26 @@ const PlainsBackground = () => (
       />
     </div>
 
+    <div className="absolute left-45 top-4 transform -translate-x-1/2 translate-y-1/8 z-10">
+      <Image
+        src="/zoro-pop.png"
+        alt="zoro-pop"
+        width={500}
+        height={300}
+        className="transition-all duration-300 shadow-lg animate-in"
+        style={{
+          animation: "4s ease-in-out 0s infinite normal none running float",
+        }}
+      />
+      <span
+        className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-white font-bold px-4 py-1 rounded-full shadow-lg text-sm uppercase z-20"
+        style={{
+          animation: "4s ease-in-out 0s infinite normal none running float",
+        }}
+      >
+        🥇 Top 1 Prize
+      </span>
+    </div>
     <Image
       src="/pond.png"
       alt="Pond"
@@ -50,6 +76,26 @@ const PlainsBackground = () => (
       height={400}
       className="absolute left-0 transform -translate-x-1/2 translate-y-1/2"
     />
+    <div className="absolute right-50 transform translate-x-1/3 translate-y-7/12 z-10">
+      <Image
+        src="/hyein-pop.png"
+        alt="hyein-pop"
+        width={500}
+        height={300}
+        className="transition-all duration-300 shadow-lg animate-in"
+        style={{
+          animation: "4s ease-in-out 0s infinite normal none running float",
+        }}
+      />
+      <span
+        className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-400 text-white font-bold px-4 py-1 rounded-full shadow-lg text-sm uppercase z-20"
+        style={{
+          animation: "4s ease-in-out 0s infinite normal none running float",
+        }}
+      >
+        🥈 Top 2 Prize
+      </span>
+    </div>
   </div>
 );
 
@@ -58,7 +104,7 @@ export default function LeaderboardPage() {
   const [session, setSession] = useState<GameSession>({
     playerId: "",
     status: "inactive",
-    name: ""
+    name: "",
   });
   const [animNonce, setAnimNonce] = useState(0);
   const [showStartAnim, setShowStartAnim] = useState(false);
@@ -68,7 +114,7 @@ export default function LeaderboardPage() {
   const [isLoadingId, setIsLoadingId] = useState(false);
   const ID_INPUT_TIMEOUT = 500;
   const idTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [studentIdBuffer, setStudentIdBuffer] = useState('');
+  const [studentIdBuffer, setStudentIdBuffer] = useState("");
 
   // Particle effect state
   type Particle = {
@@ -81,7 +127,9 @@ export default function LeaderboardPage() {
     size: number;
     batch: number;
   };
-  const [particleMap, setParticleMap] = useState<Record<string, Particle[]>>({});
+  const [particleMap, setParticleMap] = useState<Record<string, Particle[]>>(
+    {}
+  );
   const prevScoresRef = useRef<Record<string, number>>({});
   // Floating delta labels
   type LabelBurst = {
@@ -97,10 +145,13 @@ export default function LeaderboardPage() {
 
   const handleIdSubmission = useCallback(async () => {
     const trimmedId = studentIdBuffer.trim();
-    if (!trimmedId || isLoadingId) { setStudentIdBuffer(''); return; }
+    if (!trimmedId || isLoadingId) {
+      setStudentIdBuffer("");
+      return;
+    }
 
     // if current session is active, do not proceed
-    if (session.status !== 'inactive') {
+    if (session.status !== "inactive") {
       return;
     }
 
@@ -108,60 +159,69 @@ export default function LeaderboardPage() {
     setErrorMessage(null);
     try {
       const info = await fetchStudentInfo(trimmedId.toUpperCase());
-      const isValid = !!(info && info.email && info.email.endsWith('@dlsl.edu.ph') && info.name && info.name.trim().length > 0 && info.whitelist);
+      const isValid = !!(
+        info &&
+        info.email &&
+        info.email.endsWith("@dlsl.edu.ph") &&
+        info.name &&
+        info.name.trim().length > 0 &&
+        info.whitelist
+      );
       if (!isValid) {
-        setErrorMessage('Invalid student ID. Please try again.');
+        setErrorMessage("Invalid student ID. Please try again.");
       } else {
         // update session
-        supabase.from('session')
+        supabase
+          .from("session")
           .upsert({
             id: 0,
             player_id: trimmedId,
             name: info!.name,
-            status: 'active'
+            status: "active",
           })
           .then(({ error }) => {
             if (error) {
               console.error("Failed to update leaderboard:", error);
-              setErrorMessage('Failed to start session. Please try again.');
+              setErrorMessage("Failed to start session. Please try again.");
             }
           });
       }
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('Validation error:', e);
-      setErrorMessage('Unable to validate ID. Check connection and try again.');
+      console.error("Validation error:", e);
+      setErrorMessage("Unable to validate ID. Check connection and try again.");
     } finally {
       setIsLoadingId(false);
-      setStudentIdBuffer('');
+      setStudentIdBuffer("");
     }
   }, [studentIdBuffer, isLoadingId, session.status]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (session.status !== 'inactive' || isLoadingId) return;
+      if (session.status !== "inactive" || isLoadingId) return;
       if (idTimeoutRef.current) clearTimeout(idTimeoutRef.current);
-      if (event.key === 'Enter') {
+      if (event.key === "Enter") {
         void handleIdSubmission();
       } else if (event.key.length === 1) {
-        setStudentIdBuffer(prev => prev + event.key);
+        setStudentIdBuffer((prev) => prev + event.key);
       }
-      idTimeoutRef.current = setTimeout(() => { void handleIdSubmission(); }, ID_INPUT_TIMEOUT);
+      idTimeoutRef.current = setTimeout(() => {
+        void handleIdSubmission();
+      }, ID_INPUT_TIMEOUT);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
       if (idTimeoutRef.current) clearTimeout(idTimeoutRef.current);
     };
   }, [handleIdSubmission, session.status, isLoadingId]);
 
-
-
   useEffect(() => {
     console.log("Fetching from supabase");
 
-    supabase.from("leaderboard")
+    supabase
+      .from("leaderboard")
       .select("*")
       .order("score", { ascending: false })
       .limit(10)
@@ -186,9 +246,10 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     // fetch session
-    console.log("FETCHING SESSION")
+    console.log("FETCHING SESSION");
 
-    supabase.from("session")
+    supabase
+      .from("session")
       .select("*")
       .maybeSingle()
       .then(({ data, error }) => {
@@ -204,7 +265,7 @@ export default function LeaderboardPage() {
           });
         } else {
           // no session found
-          console.log("No session found")
+          console.log("No session found");
         }
       });
   }, []);
@@ -212,17 +273,21 @@ export default function LeaderboardPage() {
   useEffect(() => {
     // realtime subscriptions
 
-    const leaderboardSubscription = supabase.channel("leaderboard")
+    const leaderboardSubscription = supabase
+      .channel("leaderboard")
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leaderboard' },
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leaderboard" },
         (payload) => {
           console.log("Leaderboard payload:", payload);
 
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (
+            payload.eventType === "INSERT" ||
+            payload.eventType === "UPDATE"
+          ) {
             const newPlayer = payload.new;
             setPlayers((prev) => ({ ...prev, [newPlayer.id]: newPlayer }));
-          } else if (payload.eventType === 'DELETE') {
+          } else if (payload.eventType === "DELETE") {
             const deletedPlayerId = payload.old.id;
             setPlayers((prev) => {
               const newPlayers = { ...prev };
@@ -231,25 +296,27 @@ export default function LeaderboardPage() {
             });
           }
         }
-      )
+      );
 
-    const sessionSubscription = supabase.channel("session")
+    const sessionSubscription = supabase
+      .channel("session")
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'session' },
+        "postgres_changes",
+        { event: "*", schema: "public", table: "session" },
         (payload) => {
           console.log("Session payload:", payload);
 
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === "INSERT") {
             const newSession = payload.new;
             setSession((prev) => ({ ...prev, ...newSession }));
-          } else if (payload.eventType === 'UPDATE') {
+          } else if (payload.eventType === "UPDATE") {
             const updatedSession = payload.new;
             setSession((prev) => ({ ...prev, ...updatedSession }));
-          } else if (payload.eventType === 'DELETE') {
+          } else if (payload.eventType === "DELETE") {
             setSession({ playerId: "", status: "inactive", name: "" });
           }
-        });
+        }
+      );
 
     sessionSubscription.subscribe();
     leaderboardSubscription.subscribe();
@@ -258,69 +325,76 @@ export default function LeaderboardPage() {
       sessionSubscription.unsubscribe();
       leaderboardSubscription.unsubscribe();
     };
-  }, [])
-
-
-  const spawnParticles = useCallback((playerId: string, kind: "add" | "sub", delta: number) => {
-    const N = 16;
-    const batch = Date.now() + Math.random();
-    const colorsAdd = ["#34d399", "#10b981", "#a7f3d0", "#fbbf24"]; // greens + gold accent
-    const colorsSub = ["#f87171", "#ef4444", "#fecaca", "#fb923c"]; // reds + warm accent
-    const parts: Particle[] = Array.from({ length: N }).map((_, i) => {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 40 + Math.random() * 80; // 40-120px
-      const directionalY = kind === "add" ? -1 : 1;
-      const spreadBias = Math.random() * 0.6 + 0.4; // reduce extremes
-      const dx = Math.cos(angle) * radius * spreadBias;
-      const dy = Math.sin(angle) * radius * 0.6 + directionalY * (40 + Math.random() * 60);
-      const duration = 650 + Math.random() * 500; // 650-1150ms
-      const delay = Math.random() * 120; // 0-120ms
-      const size = 4 + Math.random() * 6; // 4-10px
-      const color = (kind === "add" ? colorsAdd : colorsSub)[i % 4];
-      return {
-        id: batch + i,
-        dx,
-        dy,
-        color,
-        duration,
-        delay,
-        size,
-        batch,
-      };
-    });
-    setParticleMap((prev) => ({
-      ...prev,
-      [playerId]: [...(prev[playerId] || []), ...parts],
-    }));
-
-    // Add a prominent floating delta label
-    const label: LabelBurst = {
-      id: batch + 100000,
-      text: `${delta > 0 ? "+" : ""}${delta}`,
-      kind,
-      duration: 1100,
-      delay: 0,
-      color: kind === "add" ? "#22c55e" : "#ef4444",
-      batch,
-    };
-    setLabelsMap((prev) => ({
-      ...prev,
-      [playerId]: [...(prev[playerId] || []), label],
-    }));
-
-    const ttl = Math.max(...parts.map((p) => p.duration + p.delay), label.duration + label.delay) + 250;
-    window.setTimeout(() => {
-      setParticleMap((prev) => ({
-        ...prev,
-        [playerId]: (prev[playerId] || []).filter((p) => p.batch !== batch),
-      }));
-      setLabelsMap((prev) => ({
-        ...prev,
-        [playerId]: (prev[playerId] || []).filter((l) => l.batch !== batch),
-      }));
-    }, ttl);
   }, []);
 
+  const spawnParticles = useCallback(
+    (playerId: string, kind: "add" | "sub", delta: number) => {
+      const N = 16;
+      const batch = Date.now() + Math.random();
+      const colorsAdd = ["#34d399", "#10b981", "#a7f3d0", "#fbbf24"]; // greens + gold accent
+      const colorsSub = ["#f87171", "#ef4444", "#fecaca", "#fb923c"]; // reds + warm accent
+      const parts: Particle[] = Array.from({ length: N }).map((_, i) => {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 40 + Math.random() * 80; // 40-120px
+        const directionalY = kind === "add" ? -1 : 1;
+        const spreadBias = Math.random() * 0.6 + 0.4; // reduce extremes
+        const dx = Math.cos(angle) * radius * spreadBias;
+        const dy =
+          Math.sin(angle) * radius * 0.6 +
+          directionalY * (40 + Math.random() * 60);
+        const duration = 650 + Math.random() * 500; // 650-1150ms
+        const delay = Math.random() * 120; // 0-120ms
+        const size = 4 + Math.random() * 6; // 4-10px
+        const color = (kind === "add" ? colorsAdd : colorsSub)[i % 4];
+        return {
+          id: batch + i,
+          dx,
+          dy,
+          color,
+          duration,
+          delay,
+          size,
+          batch,
+        };
+      });
+      setParticleMap((prev) => ({
+        ...prev,
+        [playerId]: [...(prev[playerId] || []), ...parts],
+      }));
+
+      // Add a prominent floating delta label
+      const label: LabelBurst = {
+        id: batch + 100000,
+        text: `${delta > 0 ? "+" : ""}${delta}`,
+        kind,
+        duration: 1100,
+        delay: 0,
+        color: kind === "add" ? "#22c55e" : "#ef4444",
+        batch,
+      };
+      setLabelsMap((prev) => ({
+        ...prev,
+        [playerId]: [...(prev[playerId] || []), label],
+      }));
+
+      const ttl =
+        Math.max(
+          ...parts.map((p) => p.duration + p.delay),
+          label.duration + label.delay
+        ) + 250;
+      window.setTimeout(() => {
+        setParticleMap((prev) => ({
+          ...prev,
+          [playerId]: (prev[playerId] || []).filter((p) => p.batch !== batch),
+        }));
+        setLabelsMap((prev) => ({
+          ...prev,
+          [playerId]: (prev[playerId] || []).filter((l) => l.batch !== batch),
+        }));
+      }, ttl);
+    },
+    []
+  );
 
   // Detect transition from waiting -> now playing and trigger intro animation
   useEffect(() => {
@@ -388,12 +462,12 @@ export default function LeaderboardPage() {
       `}</style>
 
       <div className="relative z-10 w-full max-w-4xl mx-auto">
-
         <div
           className="p-8 bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20"
           style={{
             // animation: 'glow 4s ease-in-out infinite, shimmer 6s ease-in-out infinite',
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%)'
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%)",
           }}
         >
           <h1
@@ -407,12 +481,16 @@ export default function LeaderboardPage() {
             LEADERBOARD
           </h1>
 
-          <div key={session.status !== 'inactive' ? session.playerId : 'waiting'} className="relative">
+          <div
+            key={session.status !== "inactive" ? session.playerId : "waiting"}
+            className="relative"
+          >
             {isLoadingId ? (
               <div
                 className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20 text-center text-[rgba(34,56,34,0.95)]"
                 style={{
-                  animation: 'waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite'
+                  animation:
+                    "waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite",
                 }}
               >
                 Validating student ID...
@@ -421,7 +499,7 @@ export default function LeaderboardPage() {
               <div
                 className="mb-6 p-4 rounded-xl bg-red-100/30 border border-red-300/40 text-center text-red-700 font-semibold"
                 style={{
-                  animation: 'popIn 420ms ease-out both'
+                  animation: "popIn 420ms ease-out both",
                 }}
               >
                 {errorMessage}
@@ -432,16 +510,26 @@ export default function LeaderboardPage() {
                 style={{
                   fontFamily: "Pagkaki, sans-serif",
                   animation: "popIn 420ms ease-out both",
-                  position: 'relative'
+                  position: "relative",
                 }}
               >
                 {showStartAnim && (
                   <>
-                    <div className="pointer-events-none absolute inset-0 rounded-xl border-2 border-yellow-300/60" style={{ animation: 'pulseRing 900ms ease-out forwards' }} />
-                    <div className="pointer-events-none absolute inset-0 rounded-xl border-2 border-amber-400/50" style={{ animation: 'pulseRing 1100ms ease-out 120ms forwards' }} />
+                    <div
+                      className="pointer-events-none absolute inset-0 rounded-xl border-2 border-yellow-300/60"
+                      style={{ animation: "pulseRing 900ms ease-out forwards" }}
+                    />
+                    <div
+                      className="pointer-events-none absolute inset-0 rounded-xl border-2 border-amber-400/50"
+                      style={{
+                        animation: "pulseRing 1100ms ease-out 120ms forwards",
+                      }}
+                    />
                   </>
                 )}
-                <p className="text-xl text-[rgba(34,56,34,0.95)]">Now Playing:</p>
+                <p className="text-xl text-[rgba(34,56,34,0.95)]">
+                  Now Playing:
+                </p>
                 <p className="text-3xl font-extrabold mt-1 text-[rgba(34,56,34,0.95)]">
                   {session.name}
                 </p>
@@ -453,7 +541,8 @@ export default function LeaderboardPage() {
               <div
                 className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20 text-center text-[rgba(34,56,34,0.95)]"
                 style={{
-                  animation: 'waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite'
+                  animation:
+                    "waitingPulse 2s ease-in-out infinite, shimmer 3s ease-in-out infinite",
                 }}
               >
                 Waiting for the next player...
@@ -466,29 +555,31 @@ export default function LeaderboardPage() {
               leaderboard.map((player, index) => (
                 <div
                   key={player.id}
-                  className={`relative overflow-visible flex items-center justify-between p-4 rounded-xl text-white transition-all duration-300 shadow-lg animate-in ${index === 0
-                    ? "bg-yellow-400/30 border-2 border-yellow-300 scale-[1.02]"
-                    : index === 1
+                  className={`relative overflow-visible flex items-center justify-between p-4 rounded-xl text-white transition-all duration-300 shadow-lg animate-in ${
+                    index === 0
+                      ? "bg-yellow-400/30 border-2 border-yellow-300 scale-[1.02]"
+                      : index === 1
                       ? "bg-slate-50/20 border border-slate-300/50"
                       : index === 2
-                        ? "bg-orange-500/20 border border-orange-400/50"
-                        : "bg-white/10"
-                    }`}
+                      ? "bg-orange-500/20 border border-orange-400/50"
+                      : "bg-white/10"
+                  }`}
                   style={{
                     animationDelay: `${index * 60}ms`,
-                    animation: `float 4s ease-in-out infinite ${index * 0.5}s`
+                    animation: `float 4s ease-in-out infinite ${index * 0.5}s`,
                   }}
                 >
                   <div className="flex items-center">
                     <div
-                      className={`w-12 h-12 min-w-12 min-h-12 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${index === 0
-                        ? "bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-300 ring-amber-200/60"
-                        : index === 1
+                      className={`w-12 h-12 min-w-12 min-h-12 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${
+                        index === 0
+                          ? "bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-300 ring-amber-200/60"
+                          : index === 1
                           ? "bg-gradient-to-br from-gray-300 to-gray-500 border-gray-300 ring-gray-200/60"
                           : index === 2
-                            ? "bg-gradient-to-br from-orange-400 to-amber-600 border-amber-400 ring-amber-200/60"
-                            : "bg-gradient-to-br from-emerald-900/70 to-emerald-800/70 border-emerald-700/70 ring-white/10"
-                        }`}
+                          ? "bg-gradient-to-br from-orange-400 to-amber-600 border-amber-400 ring-amber-200/60"
+                          : "bg-gradient-to-br from-emerald-900/70 to-emerald-800/70 border-emerald-700/70 ring-white/10"
+                      }`}
                       style={{ textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
                     >
                       #{index + 1}
@@ -499,8 +590,10 @@ export default function LeaderboardPage() {
                         fontFamily: "Pagkaki, sans-serif",
                       }}
                     >
-                      {player.name || player.id} {" "}
-                      {player.attempts === 0 ? "(First attempt)" : `(${player.attempts} attemps)`}
+                      {player.name || player.id}{" "}
+                      {player.attempts === 0
+                        ? "(First attempt)"
+                        : `(${player.attempts} attemps)`}
                     </span>
                   </div>
 
@@ -541,7 +634,11 @@ export default function LeaderboardPage() {
                           filter: "drop-shadow(0 0 4px rgba(255,255,255,0.25))",
                           letterSpacing: "1px",
                           fontSize: 68,
-                          animation: `${l.kind === 'add' ? 'labelUp' : 'labelDown'} ${3000}ms cubic-bezier(.2,.9,.2,1) ${l.delay}ms forwards`,
+                          animation: `${
+                            l.kind === "add" ? "labelUp" : "labelDown"
+                          } ${3000}ms cubic-bezier(.2,.9,.2,1) ${
+                            l.delay
+                          }ms forwards`,
                         }}
                       >
                         {l.text}
