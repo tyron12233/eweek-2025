@@ -11,6 +11,32 @@ import { supabase } from "@/lib/supabase";
 import { fetchStudentInfo } from "@/lib/student";
 import { Player, GameSession } from "@/lib/types";
 
+const QR_PLACEHOLDER =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#e5e7eb" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="220" height="220" fill="url(#g)"/>
+  <rect x="12" y="12" width="196" height="196" rx="10" fill="#f3f4f6" stroke="#cbd5e1" stroke-width="2"/>
+  <g fill="#111827">
+    <rect x="24" y="24" width="44" height="44" rx="4"/>
+    <rect x="152" y="24" width="44" height="44" rx="4"/>
+    <rect x="24" y="152" width="44" height="44" rx="4"/>
+    <rect x="92" y="92" width="16" height="16"/>
+    <rect x="116" y="92" width="16" height="16"/>
+    <rect x="92" y="116" width="16" height="16"/>
+    <rect x="140" y="116" width="16" height="16"/>
+    <rect x="116" y="140" width="16" height="16"/>
+  </g>
+  <text x="110" y="210" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#374151">QR Placeholder</text>
+</svg>
+`);
+
 const PlainsBackground = () => (
   <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
     <Image
@@ -24,10 +50,13 @@ const PlainsBackground = () => (
     <div
       style={{
         position: "absolute",
-        bottom: 32,
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: 380, // Increased width
+        top: "0",
+        left: "0",
+        marginTop: "4rem",
+        marginRight: "0rem",
+        marginLeft: "-4rem",
+        // transtoporm: "translateX(-50%)",
+        width: 580, // Increased width
         aspectRatio: "5/2",
         zIndex: 2,
       }}
@@ -41,13 +70,13 @@ const PlainsBackground = () => (
       />
     </div>
 
-    <div className="absolute left-45 top-4 transform -translate-x-1/2 translate-y-1/8 z-10">
+    <div className="absolute left-0 top-0 transform translate-y-6/12 z-10 translate-x-1/4">
       <Image
         src="/zoro-pop.png"
         alt="zoro-pop"
         width={500}
         height={300}
-        className="transition-all duration-300 shadow-lg animate-in"
+        className="transition-all duration-300 animate-in"
         style={{
           animation: "4s ease-in-out 0s infinite normal none running float",
         }}
@@ -66,7 +95,7 @@ const PlainsBackground = () => (
       alt="Pond"
       width={600}
       height={400}
-      className="absolute right-0 transform translate-x-1/2 translate-y-1/2"
+      className="absolute right-0 top-0 transform translate-x-1/4 "
     />
 
     <Image
@@ -74,15 +103,15 @@ const PlainsBackground = () => (
       alt="Pond"
       width={600}
       height={400}
-      className="absolute left-0 transform -translate-x-1/2 translate-y-1/2"
+      className="absolute left-0 bottom-0 transform -translate-x-1/4"
     />
-    <div className="absolute right-50 transform translate-x-1/3 translate-y-7/12 z-10">
+    <div className="absolute right-50 bottom-0 transform translate-x-1/3 -translate-y-3/12 z-10">
       <Image
         src="/hyein-pop.png"
         alt="hyein-pop"
         width={500}
         height={300}
-        className="transition-all duration-300 shadow-lg animate-in"
+        className="transition-all duration-300 animate-in"
         style={{
           animation: "4s ease-in-out 0s infinite normal none running float",
         }}
@@ -95,6 +124,32 @@ const PlainsBackground = () => (
       >
         🥈 Top 2 Prize
       </span>
+    </div>
+
+
+    <div className="absolute inset-8 z-[1] pointer-events-none hidden md:block">
+      {[
+        { name: "Facebook", pos: "bottom-10 left-6 rotate-[-6deg]", src: "/qr_fb.png" },
+        { name: "Instagram", pos: "bottom-10 right-10 rotate-[4deg]", src: "/qr_ig.png" },
+      ].map((item) => (
+        <div
+          key={item.name}
+          className={`absolute ${item.pos} drop-shadow-lg`}
+          style={{ animation: "float 5s ease-in-out infinite" }}
+        >
+          <Image
+        src={item.src}
+        alt={`${item.name} QR`}
+        width={180}
+        height={180}
+        className="rounded-md ring-1 ring-white/50 bg-white/70"
+        priority={false}
+          />
+          <div className="mt-1 text-center text-lg font-semibold text-white/80 uppercase tracking-wide">
+        {item.name}
+          </div>
+        </div>
+      ))}
     </div>
   </div>
 );
@@ -437,7 +492,7 @@ export default function LeaderboardPage() {
     session.status !== "inactive" ? players[session.playerId] : undefined;
 
   return (
-    <main className="min-h-screen w-full flex items-center justify-center p-4 relative">
+    <main className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-clip">
       <PlainsBackground />
 
       <style>{`
@@ -478,7 +533,7 @@ export default function LeaderboardPage() {
               color: "rgba(34, 56, 34, 0.95)",
             }}
           >
-            LEADERBOARD
+            LEADERBOARDS
           </h1>
 
           <div
@@ -550,7 +605,7 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          <div className="space-y-3" key={animNonce}>
+          <div className="space-y-2" key={animNonce}>
             {leaderboard.length > 0 ? (
               leaderboard.map((player, index) => (
                 <div
@@ -571,7 +626,8 @@ export default function LeaderboardPage() {
                 >
                   <div className="flex items-center">
                     <div
-                      className={`w-12 h-12 min-w-12 min-h-12 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${
+                      className={`w-10 h-10 min-w-10 min-h-10 flex items-center justify-center font-extrabold text-white rounded-lg shadow-md border ring-1 ${
+                        // smaller rank badge
                         index === 0
                           ? "bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-300 ring-amber-200/60"
                           : index === 1
@@ -585,15 +641,18 @@ export default function LeaderboardPage() {
                       #{index + 1}
                     </div>
                     <span
-                      className="text-2xl font-medium ml-4 pt-3 uppercase text-[rgba(34,56,34,0.95)]"
+                      className="text-xl md:text-2xl leading-tight font-medium ml-4 pt-2 uppercase text-[rgba(34,56,34,0.95)]" // smaller name
                       style={{
                         fontFamily: "Pagkaki, sans-serif",
                       }}
                     >
                       {player.name || player.id}{" "}
-                      {player.attempts === 0
+                      <span className="font-medium uppercase" style={{
+                      }}>
+                        {player.attempts === 0
                         ? "(First attempt)"
                         : `(${player.attempts} attemps)`}
+                      </span>
                     </span>
                   </div>
 
@@ -646,7 +705,7 @@ export default function LeaderboardPage() {
                     ))}
                   </div>
 
-                  <span className="text-3xl font-bold text-white">
+                  <span className="text-3xl font-bold text-[rgba(34,56,34,0.95)]">
                     {player.score} pts
                   </span>
                 </div>
