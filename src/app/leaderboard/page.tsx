@@ -230,7 +230,7 @@ export default function LeaderboardPage() {
           .from("session")
           .upsert({
             id: 0,
-            player_id: trimmedId,
+            player_id: trimmedId.toUpperCase(),
             name: info!.name,
             status: "active",
           })
